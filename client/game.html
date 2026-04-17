@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>摸鱼大作战 - 游戏中</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { overflow: hidden; background: #1a1a2e; }
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      width: 100vw;
+    }
+    #canvas-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+    #game-canvas {
+      display: block;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    /* 游戏结束遮罩 */
+    #game-over-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #game-over-overlay.show { display: flex; }
+    .game-over-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      min-width: 320px;
+      max-width: 90vw;
+      animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .game-over-card h2 { font-size: 28px; margin: 0 0 8px; color: #1a1a2e; }
+    .winner-display {
+      font-size: 18px;
+      color: #4A90D9;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+    .leaderboard { width: 100%; margin-bottom: 20px; }
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      background: #f5f5f5;
+    }
+    .leaderboard-row.rank-1 { background: #FFF8E7; }
+    .rank-medal { font-size: 20px; width: 30px; text-align: center; }
+    .player-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .player-name-lb { flex: 1; text-align: left; font-weight: 500; }
+    .player-score-lb { font-weight: 700; color: #4A90D9; }
+
+    /* 虚拟方向键 */
+    #virtual-controls {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 0; right: 0;
+      padding: 0 20px;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .dpad-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+    .dpad {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      pointer-events: all;
+    }
+    .dpad-btn {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      background: rgba(255,255,255,0.25);
+      border: 2px solid rgba(255,255,255,0.4);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.1s;
+    }
+    .dpad-btn.active { background: rgba(255,255,255,0.5); }
+    .dpad-up    { top: 0;   left: 50%; transform: translateX(-50%); }
+    .dpad-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
+    .dpad-left  { left: 0;  top: 50%;  transform: translateY(-50%); }
+    .dpad-right { right: 0; top: 50%;  transform: translateY(-50%); }
+    .action-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: all;
+    }
+    .action-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      text-align: center;
+    }
+    .btn-slack  { background: rgba(46, 204, 113, 0.6); }
+    .btn-report { background: rgba(231, 76, 60, 0.6); }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="canvas-wrapper">
+      <canvas id="game-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- 虚拟方向键（移动端） -->
+  <div id="virtual-controls">
+    <div class="dpad-container">
+      <div class="dpad">
+        <div class="dpad-btn dpad-up"    data-dir="up">▲</div>
+        <div class="dpad-btn dpad-down"  data-dir="down">▼</div>
+        <div class="dpad-btn dpad-left"  data-dir="left">◀</div>
+        <div class="dpad-btn dpad-right" data-dir="right">▶</div>
+      </div>
+      <div class="action-btns">
+        <div class="action-btn btn-slack"  id="btn-toggle-slack">🐟<br>摸鱼</div>
+        <div class="action-btn btn-report" id="btn-report">📢<br>举报</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 游戏结束 -->
+  <div id="game-over-overlay">
+    <div class="game-over-card">
+      <div style="font-size:48px;margin-bottom:8px">🏆</div>
+      <h2>游戏结束！</h2>
+      <div class="winner-display" id="winner-text"></div>
+      <div class="leaderboard" id="leaderboard"></div>
+      <button class="btn btn-primary" onclick="location.href='/'">
+        🔄 再来一局
+      </button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/socket.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
